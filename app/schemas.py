@@ -10,14 +10,32 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    user_type: str = "standard"
 
 
-class UserRead(UserBase):
+class AuthRead(BaseModel):
     id: int
+    email: EmailStr
+    username: str
     created_at: datetime
 
     class Config:
         orm_mode = True
+
+
+class UserRead(UserBase):
+    id: int
+    auth_id: int
+    user_type: str
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class SignupResponse(BaseModel):
+    auth: AuthRead
+    user: UserRead
 
 
 class Token(BaseModel):
@@ -28,3 +46,4 @@ class Token(BaseModel):
 class TokenPayload(BaseModel):
     sub: str | None = None
     exp: int | None = None
+
