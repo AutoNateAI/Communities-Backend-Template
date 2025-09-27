@@ -16,11 +16,17 @@ settings = get_settings()
 
 @router.post("/signup", response_model=schemas.UserRead, status_code=status.HTTP_201_CREATED)
 def signup(user_in: schemas.UserCreate, db: Annotated[Session, Depends(get_db)]):
-    existing_user = db.query(models.User).filter(models.User.email == user_in.email).first()
-    if existing_user:
+    if db.query(models.User).filter(models.User.email == user_in.email).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 
-    new_user = models.User(email=user_in.email, hashed_password=get_password_hash(user_in.password))
+    if db.query(models.User).filter(models.User.username == user_in.username).first():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken")
+
+    new_user = models.User(
+        email=user_in.email,
+        username=user_in.username,
+        hashed_password=get_password_hash(user_in.password),
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -34,8 +40,11 @@ def login(
     db: Annotated[Session, Depends(get_db)],
 ):
     user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    if not user:
+        user = db.query(models.User).filter(models.User.username == form_data.username).first()
+
     if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect credentials")
 
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     token = create_access_token(subject=user.email, expires_delta=access_token_expires)
