@@ -15,10 +15,21 @@ class Settings(BaseSettings):
     jwt_secret_key: str = Field(..., env="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(default=60, env="ACCESS_TOKEN_EXPIRE_MINUTES")
+    cors_origin_local: str = Field(default="http://127.0.0.1:5500", env="CORS_ORIGIN_LOCAL")
+    cors_origin_prod: str = Field(
+        default="https://backend-template-small-snowflake-3911.fly.dev",
+        env="CORS_ORIGIN_PROD",
+    )
 
     class Config:
         env_file = ".env"
         case_sensitive = False
+
+    @staticmethod
+    def _trim_trailing_slash(value: str) -> str:
+        """Return the origin without a trailing slash to satisfy CORS checks."""
+
+        return value[:-1] if value.endswith("/") else value
 
     @property
     def database_url(self) -> str:
@@ -27,6 +38,13 @@ class Settings(BaseSettings):
         if self.app_env == "production":
             return str(self.database_url_prod)
         return str(self.database_url_local)
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Return the allowed CORS origins for the current environment."""
+
+        origin = self.cors_origin_prod if self.app_env == "production" else self.cors_origin_local
+        return [self._trim_trailing_slash(origin)]
 
 
 @lru_cache
