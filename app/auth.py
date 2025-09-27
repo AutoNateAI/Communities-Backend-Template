@@ -1,29 +1,38 @@
 from datetime import datetime, timedelta
+from hashlib import sha256
 from typing import Annotated
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .database import get_db
-from .models import User
+from .models import Auth
 from .schemas import TokenPayload
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
-
 settings = get_settings()
 
 
+def _normalized_secret(password: str) -> bytes:
+    """Pre-hash the password so bcrypt length limits are never hit."""
+
+    return sha256(password.encode("utf-8")).digest()
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(_normalized_secret(plain_password), hashed_password.encode("utf-8"))
+    except ValueError as exc:  # malformed hash or unsupported revision
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid stored hash") from exc
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    hashed = bcrypt.hashpw(_normalized_secret(password), bcrypt.gensalt())
+    return hashed.decode("utf-8")
 
 
 def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
@@ -39,7 +48,7 @@ def create_access_token(subject: str, expires_delta: timedelta | None = None) ->
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: Annotated[Session, Depends(get_db)],
-) -> User:
+) -> Auth:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -55,8 +64,8 @@ async def get_current_user(
     if token_data.sub is None:
         raise credentials_exception
 
-    user = db.query(User).filter(User.email == token_data.sub).first()
-    if user is None:
+    auth_account = db.query(Auth).filter(Auth.email == token_data.sub).first()
+    if auth_account is None:
         raise credentials_exception
 
-    return user
+    return auth_account
