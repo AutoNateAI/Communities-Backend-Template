@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=60, env="ACCESS_TOKEN_EXPIRE_MINUTES")
     cors_origin_local: str = Field(default="http://127.0.0.1:5500", env="CORS_ORIGIN_LOCAL")
     cors_origin_prod: str = Field(
-        default="https://backend-template-small-snowflake-3911.fly.dev",
+        default="https://autonateai.github.io/",
         env="CORS_ORIGIN_PROD",
     )
 
